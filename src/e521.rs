@@ -1,58 +1,30 @@
 use std::fmt;
 use std::fmt::Display;
-use std::ops::{Add, Mul, Shr, Sub};
+use std::ops::{BitAnd, Shl, Shr, Sub};
 use std::str::FromStr;
 
-use num::ToPrimitive;
-use rug::{Complete, Integer};
-use rug::integer::Order;
-use rug::ops::Pow;
+use num::{One, Signed, ToPrimitive, Zero};
+use num::pow::Pow;
+use num_bigint_dig::{BigInt, ModInverse};
 
 const P: &str = "6864797660130609714981900799081393217269435300143305409394463459185543183397656052122559640661454554977296311391480858037121987999716643812574028291115057151";
 const D: i64 = -376014;
 
-pub trait MultiplePointMontgomery {
-    fn multiple_number_by_montgomery(&self, s: &Integer) -> PointE521;
+pub struct Point {
+    pub x: BigInt,
+    pub y: BigInt,
 }
 
-pub trait AddPoint {
-    fn add(&self, point: &PointE521) -> PointE521;
-}
-
-pub struct PointE521 {
-    pub x: Integer,
-    pub y: Integer,
-}
-
-impl Display for PointE521 {
+impl Display for Point {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "x: {:?}, y: {:?}", self.x, self.y)
+        write!(f, "x: {:?}, y: {:?}", self.x.to_string(), self.y.to_string())
     }
 }
 
-impl PointE521 {
-    pub fn create_from_x(x: &Integer) -> Self {
-        let one = &Integer::from(1);
-        let p = &Integer::from_str(P).unwrap();
-        let d = Integer::from(D);
-
-        let num = (one.sub(x.pow(2).complete())).pow_mod(one, p).unwrap();
-
-        let mut denom = (one.sub(d.mul(x.pow(2).complete()))).pow_mod(one, p).unwrap();
-        denom = denom.invert(p).unwrap();
-        let radicand = num.mul(denom);
-
-        PointE521 {
-            x: x.clone(),
-            y: sqrt(&radicand, p, true).unwrap(),
-        }
-    }
-}
-
-impl Clone for PointE521 {
+impl Clone for Point {
     #[inline]
     fn clone(&self) -> Self {
-        PointE521 {
+        Point {
             x: self.x.clone(),
             y: self.y.clone(),
         }
@@ -65,18 +37,61 @@ impl Clone for PointE521 {
     }
 }
 
-impl MultiplePointMontgomery for PointE521 {
-    fn multiple_number_by_montgomery(&self, s: &Integer) -> PointE521 {
-        let mut r0 = PointE521 {
-            x: Integer::from(0),
-            y: Integer::from(1),
+pub trait PointOperations {
+    fn multiple_number_by_montgomery(&self, n: &BigInt) -> Point;
+
+    fn add(&self, point: &Point) -> Point;
+}
+
+impl Point {
+    pub fn from(x: &BigInt) -> Self {
+        let one = BigInt::one();
+        let p = BigInt::from_str(P).unwrap();
+        let d = BigInt::from(D);
+
+        let x_powed: BigInt = x.pow(2 as u64);
+        let num: BigInt = &one - &x_powed % &p;
+
+        let d_mul = d * x_powed % &p;
+        let denom = one - d_mul;
+        let denom = denom.mod_inverse(&p).unwrap();
+
+        let radicand = num * denom;
+
+        Point {
+            x: x.clone(),
+            y: sqrt(&radicand, &p, true).unwrap(),
+        }
+    }
+
+    fn get_new_x(one: &BigInt, p: &BigInt, d: &BigInt, x1: &BigInt, x2: &BigInt, y1: &BigInt, y2: &BigInt) -> BigInt {
+        let x_num = (x1 * y2 + y1 * x2) % p;
+        let x_denom = (one + d * x1 * x2 * y1 * y2) % p;
+        let x_denom = x_denom.mod_inverse(p).unwrap();
+
+        (x_num * x_denom) % p
+    }
+
+    fn get_new_y(one: &BigInt, p: &BigInt, d: &BigInt, x1: &BigInt, x2: &BigInt, y1: &BigInt, y2: &BigInt) -> BigInt {
+        let y_num = (y1 * y2 - x1 * x2) % p;
+        let y_denom = (one - d * x1 * x2 * y1 * y2) % p;
+        let y_denom = y_denom.mod_inverse(p).unwrap();
+        y_num * y_denom % p
+    }
+}
+
+impl PointOperations for Point {
+    fn multiple_number_by_montgomery(&self, n: &BigInt) -> Point {
+        let mut r0 = Point {
+            x: BigInt::zero(),
+            y: BigInt::one(),
         };
 
         let mut r1 = self.clone();
-        let mut idx = s.to_digits::<u8>(Order::MsfBe).len().to_i64().unwrap() - 1;
+        let mut idx = n.to_bytes_be().1.len().to_isize().unwrap();
 
         while idx >= 0 {
-            if s.get_bit(idx.to_u32().unwrap()) {
+            if n.get_bit_at(idx) {
                 r0 = r0.add(&r1);
                 r1 = r1.add(&r1);
             } else {
@@ -87,13 +102,11 @@ impl MultiplePointMontgomery for PointE521 {
         }
         r0
     }
-}
 
-impl AddPoint for PointE521 {
-    fn add(&self, point: &PointE521) -> PointE521 {
-        let p = Integer::from_str(P).unwrap();
-        let one = &Integer::from(1);
-        let d = Integer::from(D);
+    fn add(&self, point: &Point) -> Point {
+        let one = BigInt::one();
+        let p = BigInt::from_str(P).unwrap();
+        let d = BigInt::from(D);
 
         let x1 = &self.x;
         let x2 = &point.x;
@@ -101,43 +114,38 @@ impl AddPoint for PointE521 {
         let y1 = &self.y;
         let y2 = &point.y;
 
-        let x_num = (x1.mul(y2).complete().add(y1.mul(x2))).pow_mod(one, &p).unwrap();
-        let mut x_denom = (one.add(&D.mul(x1).complete().mul(x2).mul(y1).mul(y2))).complete().pow_mod(one, &p).unwrap();
-        x_denom = x_denom.invert(&p).unwrap();
+        let x = Self::get_new_x(&one, &p, &d, x1, x2, y1, y2);
 
-        let new_x = x_num.mul(x_denom).pow_mod(one, &p).unwrap();
+        let y = Self::get_new_y(&one, &p, &d, x1, x2, y1, y2);
 
-        let y_num = (y1.mul(y2).complete().sub(x1.mul(x2))).pow_mod(one, &p).unwrap();
-        let mut y_denom = (one.sub(d.mul(x1).mul(x2).mul(y1).mul(y2))).pow_mod(one, &p).unwrap();
-
-        y_denom = y_denom.invert(&p).unwrap();
-        let new_y = y_num.mul(y_denom).pow_mod(one, &p).unwrap();
-
-        PointE521 {
-            x: new_x,
-            y: new_y,
+        Point {
+            x,
+            y,
         }
     }
 }
 
-fn sqrt(v: &Integer, p: &Integer, lsb: bool) -> Option<Integer> {
-    assert!(p.get_bit(0) && p.get_bit(1));
+fn sqrt(v: &BigInt, p: &BigInt, lsb: bool) -> Option<BigInt> {
+    let four = &BigInt::from(4);
+    let p_mod = p % four;
+    assert_eq!(p_mod, BigInt::from(3));
 
-    let zero = Integer::new();
-    let one = &Integer::from(1);
-
-    if v.clone().signum() == zero {
+    let zero = BigInt::zero();
+    let one = BigInt::one();
+    if v.signum() == zero {
         return Some(zero);
     }
 
-    let shifted: Integer = p.clone().shr(2);
-    let added = shifted.add(one);
-    let mut r = &v.clone().pow_mod(&added, p).unwrap();
+    let shifted = p.clone().shr(2);
+    let added = shifted + one;
+    let mut r = &v.clone().modpow(&added, p);
 
-    if r.get_bit(0) != lsb {
-        let tmp = p.sub(r).complete();
+    if r.get_bit_at(0) != lsb {
+        let tmp = p.sub(r);
+
         r = &tmp;
-        let expr = (r.mul(r).sub(v).complete().pow_mod(one, p)).unwrap();
+
+        let expr = (r * r - v) % p;
 
         return if expr.signum() == zero {
             Some(r.clone())
@@ -147,4 +155,14 @@ fn sqrt(v: &Integer, p: &Integer, lsb: bool) -> Option<Integer> {
     }
 
     Some(r.clone())
+}
+
+trait BitAt {
+    fn get_bit_at(&self, n: isize) -> bool;
+}
+
+impl BitAt for BigInt {
+    fn get_bit_at(&self, n: isize) -> bool {
+        self.bitand(BigInt::from(1).shl(n.to_usize().unwrap())) != BigInt::zero()
+    }
 }

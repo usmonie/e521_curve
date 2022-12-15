@@ -3,11 +3,12 @@ name = "e521_curve"
 version = "0.1.0"
 edition = "2021"
 
+#[lib]
+## This must contain at least cdylib for Android libraries to be generated.
+#crate-type = ["cdylib"]
+
 [dependencies]
 num = "0.4.0"
 rand = "0.8.5"
-rug = "1.17.0"
 sha3 = "0.10.6"
-
-[dependencies.gmp-mpfr-sys]
-features = ["force-cross"]
+num-bigint-dig = "0.8.2"
