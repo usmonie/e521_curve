@@ -125,6 +125,24 @@ impl PointOperations for Point {
     }
 }
 
+impl Point {
+    pub fn is_on_curve(&self) -> bool {
+        let p = BigInt::from_str(P).unwrap();
+        let d = BigInt::from(D);
+
+        let x = &self.x;
+        let y = &self.y;
+
+        let x_squared = x.pow(2u64) % &p;
+        let y_squared = y.pow(2u64) % &p;
+
+        let left_side = (x_squared.clone() + y_squared.clone()) % &p;
+        let right_side = (BigInt::one() + d * x_squared * y_squared) % &p;
+
+        left_side == right_side
+    }
+}
+
 fn sqrt(v: &BigInt, p: &BigInt, lsb: bool) -> Option<BigInt> {
     let four = &BigInt::from(4);
     let p_mod = p % four;
