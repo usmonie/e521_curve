@@ -1,14 +1,13 @@
 extern crate core;
+mod e521;
 
 use std::ops::Mul;
 use std::str::FromStr;
+use num_bigint::BigInt;
+use num_bigint_dig::RandBigInt;
 
-use num_bigint_dig::{BigInt, RandBigInt};
 use sha3::{Digest, Sha3_256};
-
-use crate::e521::{Point, PointOperations};
-
-pub mod e521;
+use crate::e521::e521::{get_e521_gen_point, Point, sec_mul};
 
 const X: &str = "1571054894184995387535939749894317568645297350402905821437625181152304994381188529632591196067604100772673927915114267193389905003276673749012051148356041324";
 
@@ -23,16 +22,16 @@ pub fn generate_private_key() -> BigInt {
     let mut rng = rand::thread_rng();
     let private_key = rng.gen_bigint(1000);
 
-    private_key
+    BigInt::from_signed_bytes_be(private_key.to_signed_bytes_be().as_slice())
 }
 
 pub fn generate_public_key(private_key: &BigInt) -> Point {
-    let e521 = Point::from(&BigInt::from_str(X).unwrap());
-    e521.multiple_number_by_montgomery(private_key)
+    let e521 = get_e521_gen_point(false);
+    sec_mul(private_key, e521)
 }
 
 pub fn diffie_hellman(private_key: &BigInt, public_key: &Point) -> Point {
-    public_key.multiple_number_by_montgomery(private_key)
+    sec_mul(private_key, public_key.clone())
 }
 
 pub fn generate_secret_key(point: Point) -> Vec<u8> {
