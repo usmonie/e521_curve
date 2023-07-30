@@ -1,5 +1,5 @@
 extern crate core;
-mod e521;
+pub mod e521;
 
 use std::ops::Mul;
 use std::str::FromStr;
