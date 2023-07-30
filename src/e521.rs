@@ -1,6 +1,5 @@
 pub mod e521 {
     use std::{str::FromStr, ops::{Sub, Mul}};
-    use std::marker::Destruct;
     use num_bigint::{BigInt, Sign};
     use num::Integer;
     use num::One;
@@ -20,7 +19,7 @@ pub mod e521 {
         pub r: BigInt,
         pub n: BigInt,
     }
-    
+
     impl Clone for Point {
         #[inline]
         fn clone(&self) -> Self {

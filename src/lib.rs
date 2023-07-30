@@ -2,7 +2,6 @@ extern crate core;
 pub mod e521;
 
 use std::ops::Mul;
-use std::str::FromStr;
 use num_bigint::BigInt;
 use num_bigint_dig::RandBigInt;
 
