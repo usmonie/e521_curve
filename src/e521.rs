@@ -107,6 +107,20 @@ pub mod e521 {
         point
     }
 
+    /// Gets point for arbitrary (x, y) TODO verify point is on curve
+    pub fn get_e521_point_for_x(x: BigInt, msb: bool) -> Point {
+        let new_x = x.clone();
+        let point = Point {
+            x,
+            y: solve_for_y(&new_x, set_p(), msb),
+            p: set_p(),
+            d: set_d(),
+            r: set_r(),
+            n: set_n()
+        };
+        point
+    }
+
     /// If a point is defined as (x, y) then its negation is (-x, y)
     pub fn negate_point(p: &Point) -> Point {
         let x = p.x.clone();
@@ -184,30 +198,33 @@ pub mod e521 {
     }
 
     /// Solves for y in curve equation 𝑥² + 𝑦² = 1 + 𝑑𝑥²𝑦²
-    fn solve_for_y(x: &BigInt, p: BigInt, msb: bool) -> BigInt {
+    pub fn solve_for_y(x: &BigInt, p: BigInt, msb: bool) -> BigInt {
         let num = BigInt::from(1) - x.pow(2);
         let num = mod_formula(&num, &p);
         let denom = BigInt::from(376_014) * x.pow(2) + BigInt::from(1);
         let denom = mod_formula(&denom, &p);
         let denom = mod_inv(&denom, &p);
         let radicand = num * denom;
-        let y = sqrt(&radicand, p, msb);
+        let y = sqrt(&radicand, &p, msb);
         y
     }
 
     /// Compute a square root of v mod p with a specified
     /// least significant bit, if such a root exists.
-    fn sqrt(v: &BigInt, p: BigInt, lsb: bool) -> BigInt {
-        if v.sign() ==  Sign::NoSign{ return BigInt::from(0); }
-        let r = v.modpow(&((p.clone() >> 2) + 1), &p);
+    fn sqrt(v: &BigInt, p: &BigInt, lsb: bool) -> BigInt {
+        if v.sign() == Sign::NoSign {
+            return BigInt::from(0);
+        }
+
+        let r = v.modpow(&((p + 1) >> 2), p);
+
         if !r.bit(0).eq(&lsb) {
-            let new_r = &p - r; // correct the lsb
-            let borrowed_r = new_r.clone();
-            let return_r = new_r.clone();
-            let bi = mod_formula(&new_r.mul(borrowed_r).sub(v), &p);
-            if bi.sign() == Sign::NoSign {
-                return return_r;
-            } else { return BigInt::from(0); }
+            let new_r = p - &r; // correct the lsb
+            return if mod_formula(&(new_r.clone() * &new_r - v), p).is_zero() {
+                new_r
+            } else {
+                BigInt::from(0)
+            }
         }
         r
     }
