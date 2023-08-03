@@ -5,6 +5,11 @@ pub mod e521 {
     use num::One;
     use num::Zero;
 
+
+    const P_STR: &str = "6864797660130609714981900799081393217269435300143305409394463459185543183397656052122559640661454554977296311391480858037121987999716643812574028291115057151";
+    const R_STR: &str = "337554763258501705789107630418782636071904961214051226618635150085779108655765";
+    const D: i64 = -376014;
+
     /*
         𝐸₅₂₁ curve (a so-called Edwards curve), is defined by the following parameters:
         • 𝑝 ≔ 2⁵²¹−1, a Mersenne prime defining the finite field 𝔽𝑝 .
@@ -41,19 +46,20 @@ pub mod e521 {
 
     /// Initializes r value for curve.
     fn set_r() -> BigInt {
-        let r = BigInt::from(2);
-        let r = r.pow(519);
-        let s = BigInt::from_str("337554763258501705789107630418782636071904961214051226618635150085779108655765").unwrap();
-        let r = r.sub(s);
-        return r;
+        // let r = BigInt::from(2);
+        // let r = r.pow(519);
+        // let s = BigInt::from_str("337554763258501705789107630418782636071904961214051226618635150085779108655765").unwrap();
+        // let r = r.sub(s);
+
+        return BigInt::from_str(R_STR).unwrap();
     }
 
     /// Initializes curve modulus 𝑝 := 2⁵²¹−1, a Mersenne prime defining the finite field 𝔽𝑝.
     fn set_p() -> BigInt {
-        let p = BigInt::from(2);
-        let p = p.pow(521);
-        let p = p - 1;
-        return p;
+        // let p = BigInt::from(2);
+        // let p = p.pow(521);
+        // let p = p - 1;
+        return BigInt::from_str(P_STR).unwrap();
     }
 
     /// Initializes number of points on the curve.
@@ -64,7 +70,7 @@ pub mod e521 {
     }
 
     /// Sets the curve d parameter.
-    fn set_d() -> BigInt { return Some(BigInt::from(-376014)).unwrap();}
+    fn set_d() -> BigInt { return Some(BigInt::from(D)).unwrap();}
 
     /// Generates the neutral point 𝒪 = (0, 1)
     pub fn get_e521_id_point() -> Point {
@@ -247,5 +253,4 @@ pub mod e521 {
         if inv < BigInt::zero() { inv += p }
         inv
     }
-
 }
